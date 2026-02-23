@@ -39,3 +39,13 @@ yarn-error.log*
 
 # Misc
 *.log
+
+# AI Tools Configuration
+.trellis/
+.claude/
+.cursor/
+AGENTS.md
+
+# PRD Documents
+*.md
+!README.md
