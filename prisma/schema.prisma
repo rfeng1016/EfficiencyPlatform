@@ -16,7 +16,8 @@ model Pipeline {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  nodes PipelineNode[]
+  nodes     PipelineNode[]
+  flowItems FlowItem[]
 
   @@map("sys_pipeline")
 }
@@ -35,4 +36,51 @@ model PipelineNode {
 
   @@map("sys_pipeline_node")
   @@index([pipelineId])
+}
+
+model FlowItem {
+  id             String   @id @default(cuid())
+  name           String
+  businessLine   String   @map("business_line")
+  application    String
+  pipelineId     String   @map("pipeline_id")
+  status         Int      @default(0)
+  progress       Int      @default(0)
+  codeRepository String?  @map("code_repository")
+  branch         String?
+  creator        String
+  devOwner       String?  @map("dev_owner")
+  testOwner      String?  @map("test_owner")
+  jiraCardId     String?  @map("jira_card_id")
+  spaceId        String?  @map("space_id")
+  sprintId       String?  @map("sprint_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  pipeline Pipeline      @relation(fields: [pipelineId], references: [id])
+  dates    FlowItemDate?
+
+  @@unique([application, name])
+  @@map("flow_item")
+  @@index([businessLine])
+  @@index([application])
+  @@index([status])
+  @@index([pipelineId])
+}
+
+model FlowItemDate {
+  id                 String    @id @default(cuid())
+  flowItemId         String    @unique @map("flow_item_id")
+  planDevStartTime   DateTime? @map("plan_dev_start_time")
+  actualDevStartTime DateTime? @map("actual_dev_start_time")
+  planTestStartTime  DateTime? @map("plan_test_start_time")
+  actualTestStartTime DateTime? @map("actual_test_start_time")
+  planReleaseTime    DateTime? @map("plan_release_time")
+  actualReleaseTime  DateTime? @map("actual_release_time")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  flowItem FlowItem @relation(fields: [flowItemId], references: [id], onDelete: Cascade)
+
+  @@map("flow_item_date")
 }

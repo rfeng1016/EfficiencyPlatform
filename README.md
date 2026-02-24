@@ -1,92 +1,92 @@
-# Efficiency Platform
+# 效率平台 (Efficiency Platform)
 
-A Next.js-based efficiency platform for managing pipelines and workflows.
+基于 Next.js 的效率管理平台，用于管理流水线和工作流。
 
-## Tech Stack
+## 技术栈
 
-- **Framework**: Next.js 15.1.7
-- **Runtime**: React 19
-- **Database**: Prisma ORM with SQLite
-- **Language**: TypeScript
-- **Validation**: Zod
+- **框架**: Next.js 15.1.7
+- **运行时**: React 19
+- **数据库**: Prisma ORM + SQLite
+- **语言**: TypeScript
+- **验证**: Zod
 
-## Project Structure
+## 项目结构
 
 ```
 src/
 ├── app/              # Next.js App Router
-│   ├── api/         # API routes
-│   └── page.tsx     # Main page
+│   ├── api/         # API 路由
+│   └── page.tsx     # 主页面
 ├── lib/
-│   ├── db/          # Database configuration
-│   ├── services/    # Business logic services
-│   ├── types/       # TypeScript type definitions
-│   ├── utils/       # Utility functions
-│   └── validators/  # Zod validation schemas
+│   ├── db/          # 数据库配置
+│   ├── services/    # 业务逻辑服务
+│   ├── types/       # TypeScript 类型定义
+│   ├── utils/       # 工具函数
+│   └── validators/  # Zod 验证模式
 prisma/
-├── schema.prisma    # Database schema
-└── seed.ts          # Database seeding
+├── schema.prisma    # 数据库模式
+└── seed.ts          # 数据库种子数据
 ```
 
-## Getting Started
+## 快速开始
 
-### Prerequisites
+### 前置要求
 
 - Node.js 20+
-- npm or yarn
+- npm 或 yarn
 
-### Installation
+### 安装步骤
 
-1. Clone the repository:
+1. 克隆仓库：
 ```bash
 git clone https://github.com/rfeng1016/EfficiencyPlatform.git
 cd EfficiencyPlatform
 ```
 
-2. Install dependencies:
+2. 安装依赖：
 ```bash
 npm install
 ```
 
-3. Set up environment variables:
+3. 配置环境变量：
 ```bash
 cp .env.example .env
 ```
 
-4. Initialize the database:
+4. 初始化数据库：
 ```bash
 npm run db:generate
 npm run db:push
 npm run db:seed
 ```
 
-5. Run the development server:
+5. 启动开发服务器：
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+在浏览器中打开 [http://localhost:3000](http://localhost:3000) 查看应用。
 
-## Available Scripts
+## 可用脚本
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run db:generate` - Generate Prisma client
-- `npm run db:push` - Push schema changes to database
-- `npm run db:seed` - Seed the database
+- `npm run dev` - 启动开发服务器
+- `npm run build` - 构建生产版本
+- `npm start` - 启动生产服务器
+- `npm run lint` - 运行 ESLint 检查
+- `npm run db:generate` - 生成 Prisma 客户端
+- `npm run db:push` - 推送数据库模式变更
+- `npm run db:seed` - 填充数据库种子数据
 
-## API Endpoints
+## API 接口
 
-### Pipelines
+### 流水线 (Pipelines)
 
-- `GET /api/pipelines` - List all pipelines
-- `POST /api/pipelines` - Create a new pipeline
-- `GET /api/pipelines/[id]` - Get pipeline by ID
-- `PUT /api/pipelines/[id]` - Update pipeline
-- `DELETE /api/pipelines/[id]` - Delete pipeline
+- `GET /api/pipelines` - 获取所有流水线列表
+- `POST /api/pipelines` - 创建新流水线
+- `GET /api/pipelines/[id]` - 根据 ID 获取流水线
+- `PUT /api/pipelines/[id]` - 更新流水线
+- `DELETE /api/pipelines/[id]` - 删除流水线
 
-## License
+## 许可证
 
-Private
+私有项目
