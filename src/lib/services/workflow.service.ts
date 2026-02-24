@@ -181,7 +181,7 @@ export const workflowService = {
   async getById(id: string) {
     const flowItem = await prisma.flowItem.findUnique({
       where: { id },
-      include: { dates: true, pipeline: true },
+      include: { dates: true, pipeline: true, workers: { orderBy: { order: 'asc' }, include: { items: true } } },
     });
     if (!flowItem) throw new FlowItemNotFoundError(id);
     return flowItem;
