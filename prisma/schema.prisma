@@ -59,6 +59,7 @@ model FlowItem {
 
   pipeline Pipeline      @relation(fields: [pipelineId], references: [id])
   dates    FlowItemDate?
+  workers  FlowWorker[]
 
   @@unique([application, name])
   @@map("flow_item")
@@ -66,6 +67,27 @@ model FlowItem {
   @@index([application])
   @@index([status])
   @@index([pipelineId])
+}
+
+model FlowWorker {
+  id             String    @id @default(cuid())
+  flowItemId     String    @map("flow_item_id")
+  pipelineNodeId String    @map("pipeline_node_id")
+  nodeName       String    @map("node_name")
+  nodeType       String    @map("node_type")
+  order          Int
+  status         Int       @default(0)
+  isRequired     Boolean   @default(true) @map("is_required")
+  startTime      DateTime? @map("start_time")
+  endTime        DateTime? @map("end_time")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  flowItem FlowItem @relation(fields: [flowItemId], references: [id], onDelete: Cascade)
+
+  @@map("flow_worker")
+  @@index([flowItemId])
+  @@index([status])
 }
 
 model FlowItemDate {

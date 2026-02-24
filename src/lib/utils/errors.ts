@@ -26,3 +26,27 @@ export class DefaultPipelineExistsError extends AppError {
     super(1003, 'A default pipeline already exists');
   }
 }
+
+export class FlowItemNotFoundError extends AppError {
+  constructor(id: string) {
+    super(1004, `FlowItem not found: ${id}`);
+  }
+}
+
+export class FlowItemNameExistsError extends AppError {
+  constructor(application: string, name: string) {
+    super(1005, `FlowItem name already exists in application ${application}: ${name}`);
+  }
+}
+
+export class FlowItemCancelNotAllowedError extends AppError {
+  constructor(id: string, status: number) {
+    super(1006, `FlowItem cannot be canceled in current status: ${status}`);
+  }
+}
+
+export class FlowItemAlreadyFinishedError extends AppError {
+  constructor(id: string) {
+    super(1007, `FlowItem already finished: ${id}`);
+  }
+}
