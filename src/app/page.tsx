@@ -9,10 +9,10 @@ export default function Home() {
           <h2 className="text-xl font-bold mb-2">工单管理</h2>
           <p className="text-gray-500">创建、查看和流转工单</p>
         </Link>
-        <div className="bg-white p-6 rounded shadow opacity-50">
+        <Link href="/metrics" className="bg-white p-6 rounded shadow hover:shadow-lg transition">
           <h2 className="text-xl font-bold mb-2">效能度量</h2>
-          <p className="text-gray-500">即将推出</p>
-        </div>
+          <p className="text-gray-500">查看统计数据</p>
+        </Link>
       </div>
     </main>
   );
