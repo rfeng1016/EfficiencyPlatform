@@ -29,6 +29,17 @@ async function main() {
     include: { nodes: true },
   });
 
+  // Add gates to Admission node
+  const admissionNode = defaultPipeline.nodes.find(n => n.nodeType === 'admission');
+  if (admissionNode) {
+    await prisma.gate.createMany({
+      data: [
+        { pipelineNodeId: admissionNode.id, name: '单元测试覆盖率', gateType: 'unit_test', isRequired: true, order: 1 },
+        { pipelineNodeId: admissionNode.id, name: '代码安全扫描', gateType: 'security_scan', isRequired: true, order: 2 },
+      ],
+    });
+  }
+
   console.log('Seeded default pipeline:', defaultPipeline.name);
 }
 

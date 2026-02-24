@@ -50,3 +50,9 @@ export class FlowItemAlreadyFinishedError extends AppError {
     super(1007, `FlowItem already finished: ${id}`);
   }
 }
+
+export class GateCheckFailedError extends AppError {
+  constructor(gateNames: string[]) {
+    super(1008, `Required gates not passed: ${gateNames.join(', ')}`);
+  }
+}

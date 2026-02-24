@@ -6,13 +6,14 @@ import {
   FlowItemNameExistsError,
   FlowItemCancelNotAllowedError,
   FlowItemAlreadyFinishedError,
+  GateCheckFailedError,
 } from '@/lib/utils/errors';
 
 export const workflowService = {
   async create(data: CreateFlowItemInput) {
     const pipeline = await prisma.pipeline.findUnique({
       where: { id: data.pipelineId },
-      include: { nodes: { orderBy: { order: 'asc' } } },
+      include: { nodes: { orderBy: { order: 'asc' }, include: { gates: { orderBy: { order: 'asc' } } } } },
     });
     if (!pipeline) throw new PipelineNotFoundError(data.pipelineId);
 
@@ -41,23 +42,37 @@ export const workflowService = {
       });
 
       if (pipeline.nodes.length > 0) {
-        await tx.flowWorker.createMany({
-          data: pipeline.nodes.map((node, index) => ({
-            flowItemId: flowItem.id,
-            pipelineNodeId: node.id,
-            nodeName: node.nodeName,
-            nodeType: node.nodeType,
-            order: node.order,
-            isRequired: node.isRequired,
-            status: index === 0 ? FlowItemStatus.ActionWait : 0,
-            startTime: index === 0 ? new Date() : null,
-          })),
-        });
+        for (const node of pipeline.nodes) {
+          const worker = await tx.flowWorker.create({
+            data: {
+              flowItemId: flowItem.id,
+              pipelineNodeId: node.id,
+              nodeName: node.nodeName,
+              nodeType: node.nodeType,
+              order: node.order,
+              isRequired: node.isRequired,
+              status: node.order === 1 ? FlowItemStatus.ActionWait : 0,
+              startTime: node.order === 1 ? new Date() : null,
+            },
+          });
+
+          if (node.gates.length > 0) {
+            await tx.flowWorkerItem.createMany({
+              data: node.gates.map((gate) => ({
+                flowWorkerId: worker.id,
+                flowItemId: flowItem.id,
+                gateId: gate.id,
+                gateName: gate.name,
+                gateType: gate.gateType,
+              })),
+            });
+          }
+        }
       }
 
       return tx.flowItem.findUnique({
         where: { id: flowItem.id },
-        include: { dates: true, pipeline: true, workers: { orderBy: { order: 'asc' } } },
+        include: { dates: true, pipeline: true, workers: { orderBy: { order: 'asc' }, include: { items: true } } },
       });
     });
   },
@@ -65,7 +80,7 @@ export const workflowService = {
   async flow(flowItemId: string) {
     const flowItem = await prisma.flowItem.findUnique({
       where: { id: flowItemId },
-      include: { workers: { orderBy: { order: 'asc' } } },
+      include: { workers: { orderBy: { order: 'asc' }, include: { items: true } } },
     });
     if (!flowItem) throw new FlowItemNotFoundError(flowItemId);
     if (flowItem.status === FlowItemStatus.Finished) throw new FlowItemAlreadyFinishedError(flowItemId);
@@ -75,6 +90,18 @@ export const workflowService = {
     if (currentIndex === -1) throw new FlowItemAlreadyFinishedError(flowItemId);
 
     const currentWorker = workers[currentIndex];
+
+    // Check required gates
+    const failedGates = currentWorker.items.filter(
+      (item) => item.status !== 'passed' && item.status !== 'skipped'
+    );
+    const requiredFailedGates = await prisma.gate.findMany({
+      where: { id: { in: failedGates.map((g) => g.gateId) }, isRequired: true },
+    });
+    if (requiredFailedGates.length > 0) {
+      throw new GateCheckFailedError(requiredFailedGates.map((g) => g.name));
+    }
+
     const isLastNode = currentIndex === workers.length - 1;
     const now = new Date();
 
@@ -106,7 +133,7 @@ export const workflowService = {
 
       return tx.flowItem.findUnique({
         where: { id: flowItemId },
-        include: { dates: true, pipeline: true, workers: { orderBy: { order: 'asc' } } },
+        include: { dates: true, pipeline: true, workers: { orderBy: { order: 'asc' }, include: { items: true } } },
       });
     });
   },
@@ -157,6 +184,26 @@ export const workflowService = {
       where: { id },
       data: { status: FlowItemStatus.Canceled },
       include: { dates: true, pipeline: true },
+    });
+  },
+
+  async checkGate(flowItemId: string, gateId: string) {
+    const item = await prisma.flowWorkerItem.findFirst({
+      where: { flowItemId, gateId },
+    });
+    if (!item) throw new FlowItemNotFoundError(flowItemId);
+
+    const passed = Math.random() > 0.3; // 70% pass rate simulation
+    const now = new Date();
+
+    return prisma.flowWorkerItem.update({
+      where: { id: item.id },
+      data: {
+        status: passed ? 'passed' : 'failed',
+        result: JSON.stringify({ passed, checkedAt: now.toISOString() }),
+        startTime: item.startTime || now,
+        endTime: now,
+      },
     });
   },
 };

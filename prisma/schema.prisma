@@ -33,6 +33,7 @@ model PipelineNode {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  gates    Gate[]
 
   @@map("sys_pipeline_node")
   @@index([pipelineId])
@@ -83,9 +84,49 @@ model FlowWorker {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  flowItem FlowItem @relation(fields: [flowItemId], references: [id], onDelete: Cascade)
+  flowItem FlowItem         @relation(fields: [flowItemId], references: [id], onDelete: Cascade)
+  items    FlowWorkerItem[]
 
   @@map("flow_worker")
+  @@index([flowItemId])
+  @@index([status])
+}
+
+model Gate {
+  id             String  @id @default(cuid())
+  pipelineNodeId String  @map("pipeline_node_id")
+  name           String
+  gateType       String  @map("gate_type")
+  config         String  @default("{}")
+  isRequired     Boolean @default(true) @map("is_required")
+  order          Int     @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  pipelineNode PipelineNode @relation(fields: [pipelineNodeId], references: [id], onDelete: Cascade)
+
+  @@map("sys_gate")
+  @@index([pipelineNodeId])
+}
+
+model FlowWorkerItem {
+  id           String    @id @default(cuid())
+  flowWorkerId String    @map("flow_worker_id")
+  flowItemId   String    @map("flow_item_id")
+  gateId       String    @map("gate_id")
+  gateName     String    @map("gate_name")
+  gateType     String    @map("gate_type")
+  status       String    @default("pending")
+  result       String    @default("{}")
+  startTime    DateTime? @map("start_time")
+  endTime      DateTime? @map("end_time")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  flowWorker FlowWorker @relation(fields: [flowWorkerId], references: [id], onDelete: Cascade)
+
+  @@map("flow_worker_item")
+  @@index([flowWorkerId])
   @@index([flowItemId])
   @@index([status])
 }
