@@ -40,6 +40,17 @@ async function main() {
     });
   }
 
+  // Add queues
+  await prisma.queue.createMany({
+    data: [
+      { name: 'Code Review Queue', queueType: 'code_review', description: '代码评审队列' },
+      { name: 'Arch Review Queue', queueType: 'arch_review', description: '架构评审队列' },
+      { name: 'Product Accept Queue', queueType: 'product_accept', description: '产品验收队列' },
+      { name: 'Business Accept Queue', queueType: 'business_accept', description: '业务验收队列' },
+      { name: 'Release Queue', queueType: 'release', description: '发布队列' },
+    ],
+  });
+
   console.log('Seeded default pipeline:', defaultPipeline.name);
 }
 

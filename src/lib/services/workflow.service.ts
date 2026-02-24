@@ -129,6 +129,21 @@ export const workflowService = {
           where: { id: flowItemId },
           data: { progress },
         });
+
+        // Auto-enqueue for queue-based nodes
+        const queueTypes = ['code_review', 'arch_review', 'product_accept', 'business_accept', 'release'];
+        if (queueTypes.includes(nextWorker.nodeType)) {
+          const queue = await tx.queue.findFirst({ where: { queueType: nextWorker.nodeType } });
+          if (queue) {
+            await tx.queueItem.create({
+              data: {
+                queueId: queue.id,
+                flowItemId,
+                flowWorkerId: nextWorker.id,
+              },
+            });
+          }
+        }
       }
 
       return tx.flowItem.findUnique({

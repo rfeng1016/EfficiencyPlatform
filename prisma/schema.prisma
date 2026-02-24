@@ -147,3 +147,35 @@ model FlowItemDate {
 
   @@map("flow_item_date")
 }
+
+model Queue {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  queueType   String   @map("queue_type")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items QueueItem[]
+
+  @@map("sys_queue")
+}
+
+model QueueItem {
+  id           String    @id @default(cuid())
+  queueId      String    @map("queue_id")
+  flowItemId   String    @map("flow_item_id")
+  flowWorkerId String    @map("flow_worker_id")
+  status       String    @default("pending")
+  assignee     String?
+  result       String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+
+  queue Queue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@map("queue_item")
+  @@index([queueId])
+  @@index([flowItemId])
+  @@index([status])
+}
