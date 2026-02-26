@@ -44,7 +44,9 @@ yarn-error.log*
 .trellis/
 .claude/
 .cursor/
+.agents/
 AGENTS.md
+skills-lock.json
 
 # PRD Documents
 *.md

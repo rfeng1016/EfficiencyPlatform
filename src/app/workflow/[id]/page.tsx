@@ -1,8 +1,13 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { useToast } from "@/components/ToastProvider";
 
 interface FlowWorker {
   id: string;
@@ -32,6 +37,13 @@ const statusMap: Record<number, { label: string; color: string }> = {
   3: { label: '失败', color: 'bg-red-500' },
 };
 
+const statusVariantMap: Record<number, "gray" | "blue" | "green" | "red"> = {
+  0: "gray",
+  1: "blue",
+  2: "green",
+  3: "red",
+};
+
 const gateStatusMap: Record<string, { label: string; color: string }> = {
   pending: { label: '待检查', color: 'text-gray-500' },
   running: { label: '检查中', color: 'text-blue-500' },
@@ -39,130 +51,291 @@ const gateStatusMap: Record<string, { label: string; color: string }> = {
   failed: { label: '未通过', color: 'text-red-500' },
 };
 
+const nodeNameMap: Record<string, string> = {
+  Development: "开发",
+  "Code Review": "代码评审",
+  "Architecture Review": "架构评审",
+  Admission: "准入",
+  Testing: "测试",
+  "Product Acceptance": "产品验收",
+  "Business Acceptance": "业务验收",
+  Integration: "集成",
+  Release: "发布",
+  Finish: "结束",
+};
+
+const displayNodeName = (name: string) => nodeNameMap[name] ?? name;
+
+type NodeRenderItem = FlowWorker | { type: "ellipsis"; key: string };
+const isEllipsis = (n: NodeRenderItem): n is { type: "ellipsis"; key: string } =>
+  (n as { type?: string }).type === "ellipsis";
+
 export default function WorkflowDetailPage() {
   const params = useParams();
-  const router = useRouter();
+  const toast = useToast();
   const [item, setItem] = useState<FlowItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [flowing, setFlowing] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState("");
+  const [showAllNodes, setShowAllNodes] = useState(false);
 
-  const fetchDetail = async () => {
-    const res = await fetch(`/api/workflow/${params.id}`);
-    const data = await res.json();
-    setItem(data.data);
-    setLoading(false);
-  };
+  const fetchDetail = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await fetch(`/api/workflow/${params.id}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.message || "获取工单详情失败");
+      setItem(data.data);
+    } catch (e) {
+      setItem(null);
+      setLoadError(e instanceof Error ? e.message : "获取工单详情失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id]);
 
-  useEffect(() => { fetchDetail(); }, [params.id]);
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
 
   const handleFlow = async () => {
     setFlowing(true);
     setError('');
-    const res = await fetch('/api/workflow/flow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: params.id, action: 'next' }),
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/workflow/flow", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: params.id, action: 'next' }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.message || "流转失败");
+      toast.push({ title: "流转成功", message: "已流转到下一节点", tone: "success" });
       fetchDetail();
-    } else {
-      setError(data.message);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "流转失败";
+      setError(msg);
+      toast.push({ title: "流转失败", message: msg, tone: "error" });
+    } finally {
+      setFlowing(false);
     }
-    setFlowing(false);
   };
 
   const handleCheckGate = async (gateId: string) => {
-    await fetch('/api/workflow/gate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: params.id, gateId }),
-    });
-    fetchDetail();
+    try {
+      const res = await fetch("/api/workflow/gate", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: params.id, gateId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.message || "执行检查失败");
+      toast.push({ title: "已提交检查", message: "卡点检查已开始执行", tone: "success" });
+      fetchDetail();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "执行检查失败";
+      toast.push({ title: "执行检查失败", message: msg, tone: "error" });
+    }
   };
 
-  if (loading) return <div className="p-6 text-center">加载中...</div>;
-  if (!item) return <div className="p-6 text-center">工单不存在</div>;
 
-  const currentWorker = item.workers.find((w) => w.status !== 2);
+  const currentWorker = item?.workers.find((w) => w.status !== 2);
+  const currentNodeName = currentWorker ? displayNodeName(currentWorker.nodeName) : "-";
+  const currentIndex = item?.workers.findIndex((w) => w.status !== 2) ?? -1;
+
+  const nodesToRender: NodeRenderItem[] = (() => {
+    if (!item) return [];
+    if (showAllNodes || item.workers.length <= 6) return item.workers;
+
+    const lastIndex = item.workers.length - 1;
+    const center = currentIndex >= 0 ? currentIndex : 0;
+    const keep = new Set<number>([
+      0,
+      lastIndex,
+      Math.max(0, center - 1),
+      center,
+      Math.min(lastIndex, center + 1),
+    ]);
+
+    const out: NodeRenderItem[] = [];
+    let prevKept = -10;
+    for (let i = 0; i <= lastIndex; i += 1) {
+      if (!keep.has(i)) continue;
+      if (out.length > 0 && i - prevKept > 1) {
+        out.push({ type: "ellipsis", key: `e-${prevKept}-${i}` });
+      }
+      out.push(item.workers[i]);
+      prevKept = i;
+    }
+    return out;
+  })();
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-4">
-        <Link href="/workflow" className="text-blue-600 hover:underline">← 返回列表</Link>
-      </div>
-
-      <div className="bg-white rounded shadow p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-4">{item.name}</h1>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-gray-500">业务线:</span> {item.businessLine}</div>
-          <div><span className="text-gray-500">应用:</span> {item.application}</div>
-          <div><span className="text-gray-500">创建人:</span> {item.creator}</div>
-          <div><span className="text-gray-500">创建时间:</span> {new Date(item.createdAt).toLocaleString('zh-CN')}</div>
-          <div><span className="text-gray-500">进度:</span> {item.progress}%</div>
-          <div><span className="text-gray-500">状态:</span> {item.status === 5 ? '已完成' : '进行中'}</div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded shadow p-6 mb-6">
-        <h2 className="text-lg font-bold mb-4">流程节点</h2>
-        <div className="flex items-center overflow-x-auto pb-4">
-          {item.workers.map((worker, idx) => (
-            <div key={worker.id} className="flex items-center">
-              <div className="flex flex-col items-center min-w-[100px]">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm ${statusMap[worker.status]?.color}`}>
-                  {worker.status === 2 ? '✓' : idx + 1}
-                </div>
-                <span className="text-xs mt-1 text-center">{worker.nodeName}</span>
-              </div>
-              {idx < item.workers.length - 1 && (
-                <div className={`w-12 h-0.5 ${worker.status === 2 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {currentWorker && currentWorker.items.length > 0 && (
-        <div className="bg-white rounded shadow p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4">当前节点卡点 - {currentWorker.nodeName}</h2>
-          <div className="space-y-2">
-            {currentWorker.items.map((gate) => (
-              <div key={gate.id} className="flex items-center justify-between border-b pb-2">
-                <div>
-                  <span className="font-medium">{gate.gateName}</span>
-                  <span className={`ml-2 text-sm ${gateStatusMap[gate.status]?.color}`}>
-                    ({gateStatusMap[gate.status]?.label})
-                  </span>
-                </div>
-                {gate.status === 'pending' && (
-                  <button
-                    onClick={() => handleCheckGate(gate.gateId)}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    执行检查
-                  </button>
-                )}
-              </div>
-            ))}
+    <AppShell
+      title={item ? item.name : "工单详情"}
+      description="查看节点流转、卡点检查与当前状态。"
+      actions={
+        <Link href="/workflow">
+          <Button size="sm">返回列表</Button>
+        </Link>
+      }
+    >
+      {loading ? (
+        <div className="py-10 text-center text-sm text-gray-600">加载中...</div>
+      ) : loadError ? (
+        <div className="py-10 text-center">
+          <div className="text-sm font-medium text-gray-900">加载失败</div>
+          <div className="mt-1 text-sm text-gray-600">{loadError}</div>
+          <div className="mt-4 flex justify-center">
+            <Button variant="primary" onClick={fetchDetail}>
+              重试
+            </Button>
           </div>
         </div>
-      )}
+      ) : !item ? (
+        <div className="py-10 text-center text-sm text-gray-600">工单不存在</div>
+      ) : (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader
+              title="工单摘要"
+              description={
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant={item.status === 5 ? "green" : "blue"}>
+                    {item.status === 5 ? "已完成" : "进行中"}
+                  </Badge>
+                  <span className="text-xs text-gray-600">进度 {item.progress}%</span>
+                  {item.status !== 5 && (
+                    <span className="text-xs text-gray-600">当前节点 {currentNodeName}</span>
+                  )}
+                </div>
+              }
+            />
+            <CardBody>
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <div className="text-gray-700">
+                  <span className="text-gray-500">业务线:</span> {item.businessLine}
+                </div>
+                <div className="text-gray-700">
+                  <span className="text-gray-500">应用:</span> {item.application}
+                </div>
+                <div className="text-gray-700">
+                  <span className="text-gray-500">创建人:</span> {item.creator}
+                </div>
+                <div className="text-gray-700">
+                  <span className="text-gray-500">创建时间:</span>{" "}
+                  {new Date(item.createdAt).toLocaleString("zh-CN")}
+                </div>
+              </div>
+            </CardBody>
+          </Card>
 
-      {item.status !== 5 && (
-        <div className="bg-white rounded shadow p-6">
-          <h2 className="text-lg font-bold mb-4">操作</h2>
-          {error && <div className="text-red-500 mb-4 text-sm">{error}</div>}
-          <button
-            onClick={handleFlow}
-            disabled={flowing}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {flowing ? '流转中...' : '流转到下一节点'}
-          </button>
+          <Card>
+            <CardHeader
+              title="流程节点"
+              description="默认仅展示关键节点；可展开查看完整链路。"
+              actions={
+                item && item.workers.length > 6 ? (
+                  <Button size="sm" onClick={() => setShowAllNodes((v) => !v)}>
+                    {showAllNodes ? "收起" : "展开全部"}
+                  </Button>
+                ) : null
+              }
+            />
+            <CardBody>
+              <div className="flex flex-wrap items-center gap-3">
+                {nodesToRender.map((n) => {
+                  if (isEllipsis(n)) {
+                    return (
+                      <div
+                        key={n.key}
+                        className="flex h-8 items-center justify-center rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-600"
+                      >
+                        …
+                      </div>
+                    );
+                  }
+
+                  const worker = n;
+                  const order = worker.order;
+                  const highlight = worker.status === 1;
+
+                  return (
+                    <div
+                      key={worker.id}
+                      className={
+                        highlight
+                          ? "rounded-lg border border-blue-200 bg-blue-50 px-3 py-2"
+                          : "rounded-lg border border-gray-200 bg-white px-3 py-2"
+                      }
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+                          {worker.status === 2 ? "✓" : order}
+                        </div>
+                        <Badge variant={statusVariantMap[worker.status] ?? "gray"}>
+                          {statusMap[worker.status]?.label ?? "未知"}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-700">{displayNodeName(worker.nodeName)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardBody>
+          </Card>
+
+          {currentWorker && (
+            <Card>
+              <CardHeader title={`当前节点卡点 - ${displayNodeName(currentWorker.nodeName)}`} />
+              <CardBody className="space-y-2">
+                {currentWorker.items.length > 0 ? (
+                  currentWorker.items.map((gate) => (
+                    <div
+                      key={gate.id}
+                      className="flex items-center justify-between gap-4 rounded-md border border-gray-100 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-gray-900">{gate.gateName}</div>
+                        <div className={`text-xs ${gateStatusMap[gate.status]?.color}`}>
+                          {gateStatusMap[gate.status]?.label}
+                        </div>
+                      </div>
+                      {gate.status === "pending" && (
+                        <Button size="sm" onClick={() => handleCheckGate(gate.gateId)}>
+                          执行检查
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center justify-between gap-4 rounded-md border border-gray-100 px-3 py-3">
+                    <div className="text-sm text-gray-700">本节点无卡点，可直接流转。</div>
+                    {item.status !== 5 && (
+                      <Button variant="primary" size="sm" onClick={handleFlow} disabled={flowing}>
+                        {flowing ? "流转中..." : "直接流转"}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          )}
+
+          {item.status !== 5 && currentWorker?.items.length !== 0 && (
+            <Card>
+              <CardHeader title="操作" description="完成当前节点卡点后，可流转到下一节点。" />
+              <CardBody>
+                {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
+                <Button variant="primary" onClick={handleFlow} disabled={flowing}>
+                  {flowing ? "流转中..." : "流转到下一节点"}
+                </Button>
+              </CardBody>
+            </Card>
+          )}
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
